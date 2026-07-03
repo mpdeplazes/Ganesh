@@ -1,0 +1,19 @@
+services:
+  claude:
+    build:
+      context: .
+      args:
+        CLAUDE_CODE_VERSION: "${CLAUDE_CODE_VERSION:?set from container/claude-code-version}"
+    image: ganesh:local
+    container_name: ganesh
+    init: true
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace:ro
+      - ../projects:/workspace/projects
+      - ../state:/workspace/state
+      - ../state/claude-home:/home/node/.claude
+    ports:
+      - "127.0.0.1:3000-3010:3000-3010"

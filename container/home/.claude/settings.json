@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [{ "type": "command", "command": "node /home/node/.claude/hooks/session-start.mjs" }] },
+      { "matcher": "compact", "hooks": [{ "type": "command", "command": "node /home/node/.claude/hooks/post-compact.mjs" }] }
+    ],
+    "Stop": [
+      { "hooks": [{ "type": "command", "command": "node /home/node/.claude/hooks/stop-checkpoint.mjs" }] }
+    ]
+  }
+}

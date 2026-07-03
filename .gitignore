@@ -1,0 +1,6 @@
+projects/*
+!projects/.gitkeep
+state/*
+!state/.gitkeep
+node_modules/
+.DS_Store

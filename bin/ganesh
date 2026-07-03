@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# ganesh — one word to a ready Claude session.
+# User-visible output: one plain sentence per event. Details -> launcher.log.
+set -uo pipefail
+
+BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(dirname "$BIN_DIR")"
+STATE_DIR="$REPO_DIR/state"
+LOG="$STATE_DIR/launcher.log"
+COMPOSE="$REPO_DIR/container/compose.yaml"
+export GIT_TERMINAL_PROMPT=0
+
+mkdir -p "$STATE_DIR/claude-home" "$REPO_DIR/projects"
+
+say()  { echo "$1"; }
+log()  { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >>"$LOG"; }
+fail() { say "$1"; say "Try: ganesh doctor"; log "FATAL: $1"; exit 1; }
+sha()  { if command -v sha256sum >/dev/null 2>&1; then sha256sum; else shasum -a 256; fi; }
+
+case "${1:-}" in
+  doctor) exec bash "$BIN_DIR/lib/doctor.sh" "${2:-}" ;;
+  help)   exec bash "$BIN_DIR/lib/help-bundle.sh" ;;
+  "") ;;
+  *) say "I only know: ganesh, ganesh doctor, ganesh help"; exit 1 ;;
+esac
+
+# 1. Get the latest fixes; never block on failure.
+if git -C "$REPO_DIR" remote get-url origin >/dev/null 2>&1; then
+  say "Checking for updates..."
+  git -C "$REPO_DIR" pull --ff-only >>"$LOG" 2>&1 \
+    || say "Couldn't fetch updates right now — using the current version."
+fi
+
+# 2. Make sure Docker is up.
+command -v docker >/dev/null 2>&1 || fail "The app engine (Docker) isn't installed."
+if ! docker info >/dev/null 2>&1; then
+  say "Starting the engine — about 30 seconds..."
+  case "$(uname -s)" in
+    Darwin)       open -a Docker >>"$LOG" 2>&1 ;;
+    MINGW*|MSYS*) cmd.exe //c start "" "%ProgramFiles%\\Docker\\Docker\\Docker Desktop.exe" >>"$LOG" 2>&1 ;;
+    *)            log "no docker autostart for $(uname -s)" ;;
+  esac
+  tries=0
+  until docker info >/dev/null 2>&1; do
+    tries=$((tries + 1))
+    [ "$tries" -gt 60 ] && fail "The engine didn't start."
+    sleep 2
+  done
+fi
+
+# 3. Rebuild only when container/ actually changed.
+current_hash="$(cd "$REPO_DIR" && find container -type f 2>>"$LOG" | LC_ALL=C sort | xargs cat 2>>"$LOG" | sha | cut -d' ' -f1)"
+stored_hash="$(cat "$STATE_DIR/image-hash" 2>/dev/null || true)"
+CLAUDE_CODE_VERSION="$(cat "$REPO_DIR/container/claude-code-version" 2>>"$LOG")" || fail "Part of Ganesh is missing on this computer."
+export CLAUDE_CODE_VERSION
+if [ "$current_hash" != "$stored_hash" ]; then
+  say "Installing some improvements — a minute or two..."
+  docker compose -f "$COMPOSE" build >>"$LOG" 2>&1 || fail "Couldn't finish updating."
+  docker compose -f "$COMPOSE" up -d --force-recreate >>"$LOG" 2>&1 || fail "Couldn't start your workspace."
+  echo "$current_hash" >"$STATE_DIR/image-hash"
+else
+  docker compose -f "$COMPOSE" up -d >>"$LOG" 2>&1 || fail "Couldn't start your workspace."
+fi
+
+# 4. In you go. (GANESH_NO_EXEC is a test seam — everything except the
+# interactive session, which can't run in automated checks.)
+[ -n "${GANESH_NO_EXEC:-}" ] && { log "no-exec test mode"; exit 0; }
+log "launching session"
+exec docker compose -f "$COMPOSE" exec claude \
+  claude --dangerously-skip-permissions --mcp-config /workspace/container/mcp.json
