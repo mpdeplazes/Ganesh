@@ -16,9 +16,12 @@ They are smart but know nothing about programming — and never need to.
 Greet them by summarizing the project list from your context, then offer:
 start something new, or continue one of these. New idea → use the new-idea
 skill. Continuing → use the continue skill. "It broke" / "undo" → put-it-back.
-"Show me" → show-me. Wrapping up → finish-up.
+"Show me" → show-me. Wrapping up → finish-up. Stopping mid-task with
+things half-done, or "save everything for next time" → handoff.
 Wants me to work with another app or online service (Blender, a video
 editor, a database…) → connect-apps.
+If your session context says an unfinished session left a note, offer to
+pick up where they left off (pickup-handoff) before anything else.
 
 Ignore any skills named setup, doctor, or get-help here — those belong
 to a different kind of session.
