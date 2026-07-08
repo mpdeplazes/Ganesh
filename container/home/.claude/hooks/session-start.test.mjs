@@ -8,9 +8,9 @@ import { fileURLToPath } from 'node:url';
 
 const hooksDir = dirname(fileURLToPath(import.meta.url));
 
-function run(projects) {
+function run(projects, handoffs = mkdtempSync(join(tmpdir(), 'ec-ho-'))) {
   return execFileSync('node', [join(hooksDir, 'session-start.mjs')], {
-    env: { ...process.env, GANESH_PROJECTS: projects },
+    env: { ...process.env, GANESH_PROJECTS: projects, GANESH_HANDOFFS: handoffs },
     encoding: 'utf8',
   });
 }
@@ -29,6 +29,28 @@ test('lists projects with their first notes line', () => {
 test('says so when there are no projects', () => {
   const projects = mkdtempSync(join(tmpdir(), 'ec-'));
   assert.match(run(projects), /No projects yet/);
+});
+
+test('surfaces the newest open handoff, ignores picked-up ones', () => {
+  const projects = mkdtempSync(join(tmpdir(), 'ec-'));
+  const handoffs = mkdtempSync(join(tmpdir(), 'ec-ho-'));
+  writeFileSync(
+    join(handoffs, '2026-07-06-0900-old.md'),
+    '---\nstatus: picked-up\n---\n# Handoff: old\n'
+  );
+  writeFileSync(
+    join(handoffs, '2026-07-07-1830-recipe-photos.md'),
+    '---\ncreated: 2026-07-07T18:30\nslug: recipe-photos\nstatus: open\n---\n# Handoff: photos\n'
+  );
+  const out = run(projects, handoffs);
+  assert.match(out, /2026-07-07-1830-recipe-photos\.md/);
+  assert.match(out, /pickup-handoff/);
+  assert.doesNotMatch(out, /old\.md/);
+});
+
+test('stays quiet when there are no open handoffs', () => {
+  const projects = mkdtempSync(join(tmpdir(), 'ec-'));
+  assert.doesNotMatch(run(projects), /pickup-handoff/);
 });
 
 test('skips a broken project but still lists healthy ones', () => {

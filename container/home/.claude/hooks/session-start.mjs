@@ -40,4 +40,27 @@ try {
       : 'No projects yet — this is a brand-new workspace.'
   );
 } catch {}
+
+// Surface an unfinished session (open handoff) so the greeting can offer
+// to pick it up — friends won't know to ask for it by name.
+const handoffsDir = process.env.GANESH_HANDOFFS ?? '/workspace/state/handoffs';
+try {
+  const open = readdirSync(handoffsDir)
+    .filter((f) => f.endsWith('.md'))
+    .sort()
+    .filter((f) => {
+      try {
+        const head = readFileSync(join(handoffsDir, f), 'utf8').slice(0, 500);
+        return /^status:\s*open\s*$/m.test(head);
+      } catch {
+        return false;
+      }
+    });
+  if (open.length) {
+    console.log(
+      `\nLast session ended mid-task and left a note (${open[open.length - 1]}). ` +
+        'Offer to pick up where they left off (pickup-handoff skill) before anything else.'
+    );
+  }
+} catch {}
 process.exit(0);
